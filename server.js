@@ -37,7 +37,7 @@ app.use((req, res, next) => {
   if (req.method === "OPTIONS") return res.sendStatus(204);
   next();
 });
-app.use(express.json({ limit: "32kb" }));
+app.use(express.json({ limit: "3mb" }));
 
 function adminOnly(req, res, next) {
   const configured = process.env.ADMIN_PASSWORD;
@@ -78,6 +78,19 @@ function validateProduct(body, partial = false) {
       product[field] = value;
     }
   }
+  if (!partial || Object.hasOwn(body, "image_data")) {
+    const imageData = String(body.image_data ?? "").trim();
+    if (imageData.length > 2900000) throw new Error("Images must be 2 MB or smaller.");
+    if (imageData) {
+      const match = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(imageData);
+      if (!match) throw new Error("Choose a JPEG, PNG, or WebP image.");
+      const imageBytes = Buffer.from(match[2], "base64");
+      if (imageBytes.length > 2 * 1024 * 1024 || imageBytes.toString("base64") !== match[2]) {
+        throw new Error("Images must be 2 MB or smaller.");
+      }
+    }
+    product.image_data = imageData;
+  }
   if (partial && Object.keys(product).length === 0) throw new Error("No product details were provided.");
   return product;
 }
@@ -94,11 +107,23 @@ app.get("/api/health", async (_req, res) => {
 });
 app.get("/api/products", async (_req, res) => {
   try {
-    const result = await pool.query("SELECT id, title, category, price, size, description, art, tone FROM products ORDER BY created_at DESC, title ASC");
+    const result = await pool.query("SELECT id, title, category, price, size, description, art, tone, (image_data <> '') AS has_image FROM products ORDER BY created_at DESC, title ASC");
     res.json(result.rows);
   } catch (error) {
     console.error("Could not load products:", error.message);
     res.status(500).json({ error: "The catalogue could not be loaded." });
+  }
+});
+app.get("/api/products/:id/image", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT image_data FROM products WHERE id = $1", [req.params.id]);
+    if (!result.rowCount || !result.rows[0].image_data) return res.sendStatus(404);
+    const match = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(result.rows[0].image_data);
+    if (!match) return res.sendStatus(404);
+    res.set("Content-Type", match[1]).set("Cache-Control", "public, max-age=300").send(Buffer.from(match[2], "base64"));
+  } catch (error) {
+    console.error("Could not load poster image:", error.message);
+    res.sendStatus(500);
   }
 });
 app.get("/api/admin/check", adminOnly, (_req, res) => res.json({ ok: true }));
@@ -107,8 +132,8 @@ app.post("/api/products", adminOnly, async (req, res) => {
   try {
     const p = validateProduct(req.body);
     const result = await pool.query(
-      "INSERT INTO products (id, title, category, price, size, description, art, tone) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id, title, category, price, size, description, art, tone",
-      [randomUUID(), p.title, p.category, p.price, p.size, p.description, p.art || p.title.toUpperCase().slice(0, 14), p.tone || (p.category === "cars" ? "#e68748" : "#d53155")]
+      "INSERT INTO products (id, title, category, price, size, description, art, tone, image_data) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id, title, category, price, size, description, art, tone, (image_data <> '') AS has_image",
+      [randomUUID(), p.title, p.category, p.price, p.size, p.description, p.art || p.title.toUpperCase().slice(0, 14), p.tone || (p.category === "cars" ? "#e68748" : "#d53155"), p.image_data]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -119,13 +144,13 @@ app.post("/api/products", adminOnly, async (req, res) => {
 app.patch("/api/products/:id", adminOnly, async (req, res) => {
   try {
     const p = validateProduct(req.body, true);
-    const columns = { title: "title", category: "category", price: "price", size: "size", description: "description", art: "art", tone: "tone" };
+    const columns = { title: "title", category: "category", price: "price", size: "size", description: "description", art: "art", tone: "tone", image_data: "image_data" };
     const fields = Object.keys(p);
     const values = fields.map((key) => p[key]);
     const assignments = fields.map((key, index) => columns[key] + " = $" + (index + 1));
     values.push(req.params.id);
     const result = await pool.query(
-      "UPDATE products SET " + assignments.join(", ") + " WHERE id = $" + values.length + " RETURNING id, title, category, price, size, description, art, tone",
+      "UPDATE products SET " + assignments.join(", ") + " WHERE id = $" + values.length + " RETURNING id, title, category, price, size, description, art, tone, (image_data <> '') AS has_image",
       values
     );
     if (!result.rowCount) return res.status(404).json({ error: "Poster not found." });
@@ -147,7 +172,8 @@ app.delete("/api/products/:id", adminOnly, async (req, res) => {
 });
 
 async function start() {
-  await pool.query("CREATE TABLE IF NOT EXISTS products (id text PRIMARY KEY, title varchar(60) NOT NULL, category varchar(12) NOT NULL CHECK (category IN ('anime', 'cars')), price integer NOT NULL CHECK (price > 0), size varchar(35) NOT NULL DEFAULT '', description varchar(140) NOT NULL DEFAULT '', art varchar(24) NOT NULL DEFAULT '', tone varchar(7) NOT NULL DEFAULT '#d53155', created_at timestamptz NOT NULL DEFAULT now())");
+  await pool.query("CREATE TABLE IF NOT EXISTS products (id text PRIMARY KEY, title varchar(60) NOT NULL, category varchar(12) NOT NULL CHECK (category IN ('anime', 'cars')), price integer NOT NULL CHECK (price > 0), size varchar(35) NOT NULL DEFAULT '', description varchar(140) NOT NULL DEFAULT '', art varchar(24) NOT NULL DEFAULT '', tone varchar(7) NOT NULL DEFAULT '#d53155', created_at timestamptz NOT NULL DEFAULT now(), image_data text NOT NULL DEFAULT '')");
+  await pool.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS image_data text NOT NULL DEFAULT ''");
   const count = await pool.query("SELECT count(*)::int AS count FROM products");
   if (count.rows[0].count === 0) {
     const seed = [
