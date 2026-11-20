@@ -21,6 +21,7 @@ header{height:72px;display:flex;align-items:center;justify-content:space-between
 dialog{width:min(650px,calc(100% - 24px));max-height:88vh;padding:0;background:#160e13;color:white;border:1px solid #713248;box-shadow:0 20px 80px #000c}dialog::backdrop{background:#050307cf;backdrop-filter:blur(3px)}.dlg-head{display:flex;justify-content:space-between;align-items:center;padding:17px 20px;border-bottom:1px solid #ffffff20}.dlg-head h2{font-size:27px;margin:0}.close{border:0;background:none;color:white;font-size:24px}.dlg-body{padding:20px;overflow:auto;max-height:calc(88vh - 68px)}.note{font-size:11px;color:var(--muted)}.form{display:grid;grid-template-columns:1fr 1fr;gap:11px}.field label{display:block;font-size:10px;color:#d8c3cb;margin-bottom:4px}.field input,.field select,.field textarea{width:100%;background:#24171f;border:1px solid #51303d;color:white;padding:9px;border-radius:3px}.field.full{grid-column:1/-1}.field textarea{min-height:55px}.admin-list{margin-top:23px}.admin-row{display:grid;grid-template-columns:1fr 90px 90px 58px;gap:8px;align-items:center;border-top:1px solid #ffffff18;padding:9px 0;font-size:11px}.admin-row input{width:100%;padding:6px;background:#24171f;border:1px solid #51303d;color:white}.admin-row button{padding:6px;border:1px solid #76304b;background:none;color:#ff9bb0;font-size:10px}
 @media(max-width:760px){nav{display:none}.hero{grid-template-columns:1fr}.art{height:310px}.grid{grid-template-columns:repeat(2,1fr)}.about{gap:22px}}
 @media(max-width:520px){header{height:64px}.brand{font-size:17px}.nav-actions .btn{padding:8px;font-size:10px}.hero{padding:40px 0}.art{height:280px;width:85%}.section-head{display:block}.section-head p{margin-top:10px}.grid{gap:9px}.cover{height:175px}.cover-word{font-size:24px}.card-body{padding:10px}.card h3{font-size:17px}.desc{font-size:10px}.card-foot{align-items:flex-start;flex-direction:column}.order{width:100%;text-align:center}.about{grid-template-columns:1fr}.contact{align-items:flex-start;flex-direction:column;padding:23px}.form{grid-template-columns:1fr}.field.full{grid-column:auto}.admin-row{grid-template-columns:1fr 70px 55px}.admin-row .category{display:none}}
+.admin-editor[hidden],#loginForm[hidden]{display:none}.auth-message{color:#ffc7d2}
 </style>
 </head>
 <body>
@@ -52,36 +53,63 @@ dialog{width:min(650px,calc(100% - 24px));max-height:88vh;padding:0;background:#
 <a class="float" href="https://wa.me/918072609682" target="_blank" rel="noopener" aria-label="Chat on WhatsApp">◉</a>
 <dialog id="admin">
   <div class="dlg-head"><div><div class="kicker">Store management</div><h2>SELLER PANEL</h2></div><button class="close" id="closeAdmin" aria-label="Close">×</button></div>
-  <div class="dlg-body"><p class="note">Add posters or change prices. Changes are saved in this browser on this device.</p>
-    <form id="form"><div class="form">
-      <div class="field"><label for="title">POSTER NAME</label><input id="title" name="title" required maxlength="60" placeholder="e.g. Midnight Run"></div>
-      <div class="field"><label for="category">CATEGORY</label><select id="category" name="category"><option value="anime">Anime</option><option value="cars">Cars</option></select></div>
-      <div class="field"><label for="price">PRICE (₹)</label><input id="price" name="price" type="number" min="1" required placeholder="499"></div>
-      <div class="field"><label for="size">SIZE / FORMAT</label><input id="size" name="size" maxlength="35" placeholder="A3 · Matte finish"></div>
-      <div class="field full"><label for="description">SHORT DESCRIPTION</label><textarea id="description" name="description" maxlength="140" placeholder="A short line about this poster"></textarea></div>
-    </div><button class="btn primary" style="margin-top:12px" type="submit">＋ Add poster</button></form>
-    <div class="admin-list"><h3>Current posters</h3><div id="adminList"></div></div>
+  <div class="dlg-body">
+    <p class="note">Catalogue changes are shared with visitors. Enter the seller password to continue.</p>
+    <form id="loginForm">
+      <div class="field"><label for="adminPassword">SELLER PASSWORD</label><input id="adminPassword" type="password" autocomplete="current-password" required></div>
+      <button class="btn primary" type="submit">Unlock seller panel</button>
+      <p class="note" id="authMessage" role="status"></p>
+    </form>
+    <div id="adminEditor" class="admin-editor" hidden>
+      <form id="form"><div class="form">
+        <div class="field"><label for="title">POSTER NAME</label><input id="title" name="title" required maxlength="60" placeholder="e.g. Midnight Run"></div>
+        <div class="field"><label for="category">CATEGORY</label><select id="category" name="category"><option value="anime">Anime</option><option value="cars">Cars</option></select></div>
+        <div class="field"><label for="price">PRICE (₹)</label><input id="price" name="price" type="number" min="1" required placeholder="499"></div>
+        <div class="field"><label for="size">SIZE / FORMAT</label><input id="size" name="size" maxlength="35" placeholder="A3 · Matte finish"></div>
+        <div class="field full"><label for="description">SHORT DESCRIPTION</label><textarea id="description" name="description" maxlength="140" placeholder="A short line about this poster"></textarea></div>
+      </div><button class="btn primary" style="margin-top:12px" type="submit">＋ Add poster</button></form>
+      <div class="admin-list"><h3>Current posters</h3><div id="adminList"></div></div>
+      <button class="btn" id="logout" type="button" style="margin-top:14px">Lock seller panel</button>
+    </div>
   </div>
 </dialog>
 <script>
 (()=>{
-  const KEY="senpai-poster-store-v1";
-  const starter=[
-    {id:"moon",title:"Moonlit Samurai",category:"anime",price:499,size:"A3 · Matte finish",description:"A quiet moment before the next great adventure.",tone:"#d53155",art:"侍"},
-    {id:"redline",title:"Redline Legend",category:"cars",price:599,size:"A3 · Matte finish",description:"For the ones who hear the road calling.",tone:"#f08349",art:"REDLINE"},
-    {id:"spirit",title:"Spirit Awakens",category:"anime",price:499,size:"A3 · Matte finish",description:"Bold colour and a little supernatural magic.",tone:"#a84dd6",art:"魂"},
-    {id:"midnight",title:"Midnight Drive",category:"cars",price:599,size:"A3 · Matte finish",description:"Neon reflections. Empty roads. One more run.",tone:"#7359d2",art:"MIDNIGHT"},
-    {id:"crimson",title:"Crimson Horizon",category:"anime",price:499,size:"A3 · Matte finish",description:"A striking red horizon for your favourite corner.",tone:"#e44457",art:"紅"},
-    {id:"apex",title:"Apex Mode",category:"cars",price:599,size:"A3 · Matte finish",description:"Track-day attitude for your garage walls.",tone:"#e9a34f",art:"APEX"}
-  ];
-  let items;try{const saved=JSON.parse(localStorage.getItem(KEY));items=Array.isArray(saved)?saved:starter}catch{items=starter}
-  let filter="all";const grid=document.getElementById("products"),search=document.getElementById("search"),dialog=document.getElementById("admin"),adminList=document.getElementById("adminList");
+  const API="https://senpai-poster-store-api.onrender.com/api";
+  let items=[],filter="all",catalogueError="";
+  let adminToken=sessionStorage.getItem("senpaiAdminToken")||"";
+  const grid=document.getElementById("products"),search=document.getElementById("search");
+  const dialog=document.getElementById("admin"),adminList=document.getElementById("adminList");
   const txt=v=>String(v??"");
-  function save(){localStorage.setItem(KEY,JSON.stringify(items));render()}
-  function orderUrl(p){const message="Hi SENPAI POSTER STORE! I'd like to order: "+p.title+" ("+p.category+") — ₹"+p.price+". Please share the next steps.";return "https://wa.me/918072609682?text="+encodeURIComponent(message)}
+
+  async function request(path,options={}){
+    const headers={};
+    if(options.body)headers["Content-Type"]="application/json";
+    if(options.admin&&adminToken)headers.Authorization="Bearer "+adminToken;
+    const response=await fetch(API+path,{method:options.method||"GET",headers,body:options.body?JSON.stringify(options.body):undefined});
+    let data=null;
+    if(response.status!==204){try{data=await response.json()}catch{data={error:"The server returned an unreadable response."}}}
+    if(!response.ok)throw new Error(data?.error||"Request failed.");
+    return data;
+  }
+  async function loadProducts(){
+    try{items=await request("/products");catalogueError=""}
+    catch(error){items=[];catalogueError=error.message}
+    render();
+  }
+  function orderUrl(p){
+    const message="Hi SENPAI POSTER STORE! I'd like to order: "+p.title+" ("+p.category+") — ₹"+p.price+". Please share the next steps.";
+    return "https://wa.me/918072609682?text="+encodeURIComponent(message);
+  }
   function render(){
-    const q=search.value.trim().toLowerCase(),shown=items.filter(p=>(filter==="all"||p.category===filter)&&(!q||(p.title+" "+p.description+" "+p.category).toLowerCase().includes(q)));
-    grid.replaceChildren();if(!shown.length){const e=document.createElement("div");e.className="empty";e.textContent="No posters found. Try another search or category.";grid.append(e);return}
+    const q=search.value.trim().toLowerCase();
+    const shown=items.filter(p=>(filter==="all"||p.category===filter)&&(!q||(p.title+" "+p.description+" "+p.category).toLowerCase().includes(q)));
+    grid.replaceChildren();
+    if(!shown.length){
+      const e=document.createElement("div");e.className="empty";
+      e.textContent=catalogueError?"Catalogue unavailable: "+catalogueError:"No posters found. Try another search or category.";
+      grid.append(e);return;
+    }
     shown.forEach(p=>{
       const card=document.createElement("article");card.className="card";
       const cover=document.createElement("div");cover.className="cover "+(p.category==="cars"?"car":"anime");cover.style.setProperty("--tone",p.tone||"#d53155");
@@ -92,31 +120,76 @@ dialog{width:min(650px,calc(100% - 24px));max-height:88vh;padding:0;background:#
       const desc=document.createElement("p");desc.className="desc";desc.textContent=p.description||"A new favourite for your walls.";
       const foot=document.createElement("div");foot.className="card-foot";const size=document.createElement("span");size.className="size";size.textContent=p.size||"Ask us about sizes";
       const order=document.createElement("a");order.className="order";order.href=orderUrl(p);order.target="_blank";order.rel="noopener";order.textContent="Order on WhatsApp ↗";
-      foot.append(size,order);body.append(top,desc,foot);card.append(cover,body);grid.append(card)
-    })
+      foot.append(size,order);body.append(top,desc,foot);card.append(cover,body);grid.append(card);
+    });
   }
   function renderAdmin(){
-    adminList.replaceChildren();if(!items.length){adminList.textContent="No posters in the catalogue yet.";return}
+    adminList.replaceChildren();
+    if(!items.length){adminList.textContent="No posters in the catalogue yet.";return}
     items.forEach(p=>{
-      const row=document.createElement("div");row.className="admin-row";const name=document.createElement("span");name.textContent=p.title;
-      const cat=document.createElement("span");cat.className="category";cat.textContent=p.category==="cars"?"Cars":"Anime";
-      const input=document.createElement("input");input.type="number";input.min="1";input.value=p.price;input.setAttribute("aria-label","Price for "+p.title);
-      input.addEventListener("change",()=>{const n=Number(input.value);if(n>0){p.price=n;save()}});
-      const del=document.createElement("button");del.type="button";del.textContent="Remove";del.addEventListener("click",()=>{if(confirm("Remove “"+p.title+"” from the catalogue?")){items=items.filter(x=>x.id!==p.id);save();renderAdmin()}});
-      row.append(name,cat,input,del);adminList.append(row)
-    })
+      const row=document.createElement("div");row.className="admin-row";
+      const name=document.createElement("span");name.textContent=p.title;
+      const category=document.createElement("span");category.className="category";category.textContent=p.category==="cars"?"Cars":"Anime";
+      const price=document.createElement("input");price.type="number";price.min="1";price.value=p.price;price.setAttribute("aria-label","Price for "+p.title);
+      price.addEventListener("change",async()=>{
+        const value=Number(price.value);if(value<1)return;
+        try{await request("/products/"+encodeURIComponent(p.id),{method:"PATCH",admin:true,body:{price:value}});await loadProducts();renderAdmin()}
+        catch(error){alert(error.message)}
+      });
+      const remove=document.createElement("button");remove.type="button";remove.textContent="Remove";
+      remove.addEventListener("click",async()=>{
+        if(!confirm("Remove “"+p.title+"” from the catalogue?"))return;
+        try{await request("/products/"+encodeURIComponent(p.id),{method:"DELETE",admin:true});await loadProducts();renderAdmin()}
+        catch(error){alert(error.message)}
+      });
+      row.append(name,category,price,remove);adminList.append(row);
+    });
   }
-  function openAdmin(){renderAdmin();dialog.showModal()}
-  document.querySelectorAll("[data-filter]").forEach(b=>b.addEventListener("click",()=>{filter=b.dataset.filter;document.querySelectorAll(".filter").forEach(x=>x.classList.toggle("active",x===b));render()}));
-  search.addEventListener("input",render);document.getElementById("openAdmin").addEventListener("click",openAdmin);
-  document.getElementById("closeAdmin").addEventListener("click",()=>dialog.close());dialog.addEventListener("click",e=>{if(e.target===dialog)dialog.close()});
-  document.getElementById("form").addEventListener("submit",e=>{
-    e.preventDefault();const f=new FormData(e.currentTarget),title=txt(f.get("title")).trim(),price=Number(f.get("price"));if(!title||price<1)return;
-    const category=txt(f.get("category"));
-    items.unshift({id:window.crypto?.randomUUID?.()||String(Date.now()),title,category,price,size:txt(f.get("size")).trim()||"Ask us about sizes",description:txt(f.get("description")).trim()||"A new favourite for your walls.",tone:category==="cars"?"#e68748":"#d53155",art:title.length>14?title.slice(0,14).toUpperCase():title.toUpperCase()});
-    save();renderAdmin();e.currentTarget.reset()
+  function setUnlocked(unlocked){
+    document.getElementById("loginForm").hidden=unlocked;
+    document.getElementById("adminEditor").hidden=!unlocked;
+    if(unlocked)renderAdmin();
+  }
+  async function openAdmin(){
+    dialog.showModal();
+    if(!adminToken){setUnlocked(false);return}
+    try{await request("/admin/check",{admin:true});setUnlocked(true)}
+    catch{adminToken="";sessionStorage.removeItem("senpaiAdminToken");setUnlocked(false)}
+  }
+  document.querySelectorAll("[data-filter]").forEach(b=>b.addEventListener("click",()=>{
+    filter=b.dataset.filter;document.querySelectorAll(".filter").forEach(x=>x.classList.toggle("active",x===b));render();
+  }));
+  search.addEventListener("input",render);
+  document.getElementById("openAdmin").addEventListener("click",openAdmin);
+  document.getElementById("closeAdmin").addEventListener("click",()=>dialog.close());
+  dialog.addEventListener("click",e=>{if(e.target===dialog)dialog.close()});
+  document.getElementById("loginForm").addEventListener("submit",async e=>{
+    e.preventDefault();
+    const message=document.getElementById("authMessage");
+    const password=document.getElementById("adminPassword").value;
+    message.textContent="Checking password…";
+    adminToken=password;
+    try{
+      await request("/admin/check",{admin:true});
+      sessionStorage.setItem("senpaiAdminToken",adminToken);
+      message.textContent="";
+      setUnlocked(true);
+    }catch(error){adminToken="";message.textContent=error.message}
   });
-  document.getElementById("year").textContent=new Date().getFullYear();render()
+  document.getElementById("logout").addEventListener("click",()=>{
+    adminToken="";sessionStorage.removeItem("senpaiAdminToken");document.getElementById("adminPassword").value="";setUnlocked(false);
+  });
+  document.getElementById("form").addEventListener("submit",async e=>{
+    e.preventDefault();
+    const f=new FormData(e.currentTarget),title=txt(f.get("title")).trim(),price=Number(f.get("price"));
+    if(!title||price<1)return;
+    const category=txt(f.get("category"));
+    const product={title,category,price,size:txt(f.get("size")).trim()||"Ask us about sizes",description:txt(f.get("description")).trim()||"A new favourite for your walls.",tone:category==="cars"?"#e68748":"#d53155",art:title.length>14?title.slice(0,14).toUpperCase():title.toUpperCase()};
+    try{await request("/products",{method:"POST",admin:true,body:product});e.currentTarget.reset();await loadProducts();renderAdmin()}
+    catch(error){alert(error.message)}
+  });
+  document.getElementById("year").textContent=new Date().getFullYear();
+  loadProducts();
 })();
 </script>
 </body>
