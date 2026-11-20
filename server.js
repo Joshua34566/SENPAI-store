@@ -61,7 +61,7 @@ function validateProduct(body, partial = false) {
   }
   if (!partial || Object.hasOwn(body, "category")) {
     const category = String(body.category || "");
-    if (!["anime", "cars"].includes(category)) throw new Error("Choose Anime or Cars.");
+    if (!["anime", "cars", "bikes", "motivational", "sports"].includes(category)) throw new Error("Choose Anime, Cars, Bikes, Motivational poster, or Sports.");
     product.category = category;
   }
   if (!partial || Object.hasOwn(body, "price")) {
@@ -133,7 +133,7 @@ app.post("/api/products", adminOnly, async (req, res) => {
     const p = validateProduct(req.body);
     const result = await pool.query(
       "INSERT INTO products (id, title, category, price, size, description, art, tone, image_data) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id, title, category, price, size, description, art, tone, (image_data <> '') AS has_image",
-      [randomUUID(), p.title, p.category, p.price, p.size, p.description, p.art || p.title.toUpperCase().slice(0, 14), p.tone || (p.category === "cars" ? "#e68748" : "#d53155"), p.image_data]
+      [randomUUID(), p.title, p.category, p.price, p.size, p.description, p.art || p.title.toUpperCase().slice(0, 14), p.tone || ({ anime: "#d53155", cars: "#e68748", bikes: "#56a56d", motivational: "#a84dd6", sports: "#488ee6" }[p.category] || "#d53155"), p.image_data]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -172,8 +172,10 @@ app.delete("/api/products/:id", adminOnly, async (req, res) => {
 });
 
 async function start() {
-  await pool.query("CREATE TABLE IF NOT EXISTS products (id text PRIMARY KEY, title varchar(60) NOT NULL, category varchar(12) NOT NULL CHECK (category IN ('anime', 'cars')), price integer NOT NULL CHECK (price > 0), size varchar(35) NOT NULL DEFAULT '', description varchar(140) NOT NULL DEFAULT '', art varchar(24) NOT NULL DEFAULT '', tone varchar(7) NOT NULL DEFAULT '#d53155', created_at timestamptz NOT NULL DEFAULT now(), image_data text NOT NULL DEFAULT '')");
+  await pool.query("CREATE TABLE IF NOT EXISTS products (id text PRIMARY KEY, title varchar(60) NOT NULL, category varchar(12) NOT NULL CHECK (category IN ('anime', 'cars', 'bikes', 'motivational', 'sports')), price integer NOT NULL CHECK (price > 0), size varchar(35) NOT NULL DEFAULT '', description varchar(140) NOT NULL DEFAULT '', art varchar(24) NOT NULL DEFAULT '', tone varchar(7) NOT NULL DEFAULT '#d53155', created_at timestamptz NOT NULL DEFAULT now(), image_data text NOT NULL DEFAULT '')");
   await pool.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS image_data text NOT NULL DEFAULT ''");
+  await pool.query("ALTER TABLE products DROP CONSTRAINT IF EXISTS products_category_check");
+  await pool.query("ALTER TABLE products ADD CONSTRAINT products_category_check CHECK (category IN ('anime', 'cars', 'bikes', 'motivational', 'sports'))");
   const count = await pool.query("SELECT count(*)::int AS count FROM products");
   if (count.rows[0].count === 0) {
     const seed = [
